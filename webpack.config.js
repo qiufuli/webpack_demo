@@ -1,19 +1,32 @@
 const path = require('path');
+const webpack = require('webpack');
 // 压缩代码用的插件 需要先引用  然后在plugin中配置
-const uglify = require('uglifyjs-webpack-plugin');
+//const uglify = require('uglifyjs-webpack-plugin');
 //html压缩插件
 const htmlPlugin = require('html-webpack-plugin');
 //css分离
 const extractTextPlugin = require('extract-text-webpack-plugin');
+// 
+const glob = require('glob');
+//消除多余的css
+const PurifycssPlugin = require('purifycss-webpack');
+//模块化
+const entry = require('./webpack_config/entry_webpack.js');
 
-var website = {
+console.log( encodeURIComponent(process.env.type) );
+if(process.env.type=="build"){
+	var website = {
 	publicPath:'http://192.168.9.243:1717/'
+	}
+}else{
+	var website = {
+	publicPath:'http://cdn.jspang.com:1717/'
+	}
 }
 module.exports = {
 	//entry 入口
 	entry:{
-		entry:'./src/entry.js',
-		entry2:'./src/entry2.js'
+		entry:entry.path.entry,
 	},
 	//output 出口
 	output:{
@@ -32,7 +45,14 @@ module.exports = {
 				test:/\.css$/,
 				use:extractTextPlugin.extract({
 					fallback:'style-loader',
-					use:'css-loader'
+					use:[
+						{
+							loader:'css-loader'
+						},
+						{
+							loader:'postcss-loader'
+						}
+					]
 				})
 			},
 			{
@@ -47,8 +67,39 @@ module.exports = {
 				}]
 			},
 			{
+				//处理html中img标签的打包
 				test:/\.(htm|html)$/i,
 				use:['html-withimg-loader']
+			},
+			{
+				test:/\.less$/,
+//				use:[
+//					{ 
+//						loader:'style-loader'
+//					},{
+//						loader:'css-loader'
+//					},{
+//						loader:'less-loader'
+//					}
+//				]
+				use:extractTextPlugin.extract({
+					use:[
+						{
+							loader:'css-loader'
+						},{
+							loader:'less-loader'
+						}
+					],
+					fallback:'style-loader'
+				})
+			},
+			{
+				test:/\.(jsx|js)$/,
+				use:{
+					loader:'babel-loader'
+					
+				},
+				exclude:/node_modules/
 			}
 		]
 	},
@@ -59,11 +110,17 @@ module.exports = {
 			minify:{
 				// removeAttributeQuotes 去“”引号
 				removeAttributeQuotes:true,
-			},
+			}, 
 			hash:true,
 			template:'./src/index.html'
 		}),
-		new extractTextPlugin("css/index.css")
+		new extractTextPlugin("css/index.css"),
+		// 去除没用到的css
+		new PurifycssPlugin({
+			paths:glob.sync(path.join(__dirname,'src/*.html'))
+		}),
+		//设置备注用的
+		new webpack.BannerPlugin('邱福利 版权所有')
 	],
 	// devServer配置服务
 	devServer:{
@@ -77,5 +134,13 @@ module.exports = {
 		port:1717
 		//这些配置好了后 需要安装下这个服务才能用
 		//cnpm install webpack-dev-server --save-dev
+	},
+	watchOptions:{
+		//监测修改时间 ms
+		poll:1000,
+		//重复按键的间隔时间
+		aggregateTimeout:500,
+		//忽略文件
+		ignored:/node_modules/,
 	}
 }
